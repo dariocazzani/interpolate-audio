@@ -1,22 +1,22 @@
 import tensorflow as tf
 
-LEARNING_RATE = 1E-3
+LEARNING_RATE = 1E-4
 
 def residual_conv_block(x, num_channels, kernel_size, strides=1):
 
-    residual = tf.layers.conv2d(x, filters=num_channels, kernel_size=1, padding='same', activation=tf.nn.relu)
+    residual = tf.layers.conv2d(x, filters=num_channels, kernel_size=1, padding='same', activation=tf.nn.leaky_relu)
     residual = tf.layers.batch_normalization(residual)
 
-    conv1 = tf.layers.conv2d(x, filters=num_channels, kernel_size=kernel_size, strides=strides, padding='same', activation=tf.nn.relu)
+    conv1 = tf.layers.conv2d(x, filters=num_channels, kernel_size=kernel_size, strides=strides, padding='same', activation=tf.nn.leaky_relu)
     batch1 = tf.layers.batch_normalization(conv1)
-    conv2 = tf.layers.conv2d(batch1, filters=num_channels, kernel_size=kernel_size, strides=strides, padding='same', activation=tf.nn.relu)
+    conv2 = tf.layers.conv2d(batch1, filters=num_channels, kernel_size=kernel_size, strides=strides, padding='same', activation=tf.nn.leaky_relu)
     batch2 = tf.layers.batch_normalization(conv2)
-    block = tf.nn.relu(batch2 + residual)
+    block = tf.nn.leaky_relu(batch2 + residual)
     return tf.layers.batch_normalization(block)
 
-def residual_deconv_block(x, num_channels, kernel_size, strides=1, padding='same', activation=tf.nn.relu):
+def residual_deconv_block(x, num_channels, kernel_size, strides=1, padding='same', activation=tf.nn.leaky_relu):
 
-    # residual = tf.layers.conv2d(x, filters=num_channels, kernel_size=1, strides=strides, padding='same', activation=tf.nn.relu)
+    # residual = tf.layers.conv2d(x, filters=num_channels, kernel_size=1, strides=strides, padding='same', activation=tf.nn.leaky_relu)
     # residual = tf.layers.batch_normalization(residual)
 
     deconv1 = tf.layers.conv2d_transpose(x, filters=num_channels, kernel_size=kernel_size, strides=strides, padding=padding, activation=activation)
@@ -24,7 +24,7 @@ def residual_deconv_block(x, num_channels, kernel_size, strides=1, padding='same
     deconv2 = tf.layers.conv2d_transpose(batch1, filters=num_channels, kernel_size=kernel_size, strides=strides, padding=padding, activation=activation)
     batch2 = tf.layers.batch_normalization(deconv2)
     return batch2
-    # block = tf.nn.relu(batch2 + residual)
+    # block = tf.nn.leaky_relu(batch2 + residual)
     # return tf.layers.batch_normalization(block)
 
 
@@ -63,11 +63,15 @@ class Network(object):
         optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
         gradients = optimizer.compute_gradients(loss=self.loss)
 
-        # for gradient, variable in gradients:
-        #     tf.summary.histogram("gradients/" + variable.name, gradient)
-        #     tf.summary.histogram("variables/" + variable.name, variable)
+        capped_gvs = [(tf.clip_by_value(grad, -1.0, 1.0), var) for grad, var in gradients]
 
-        self.train_op = optimizer.apply_gradients(gradients, global_step=self.global_step)
+        for gradient, variable in capped_gvs:
+            tf.summary.histogram("gradients/" + variable.name, gradient)
+            tf.summary.histogram("variables/" + variable.name, variable)
+
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            self.train_op = optimizer.apply_gradients(capped_gvs, global_step=self.global_step)
 
         self.merged = tf.summary.merge_all()
 
@@ -95,10 +99,45 @@ class Network(object):
         return mu + tf.exp(logvar / 2) * eps
 
     def encoder(self, x):
-        x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
-        x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
-        x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
-        x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+
+        x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.batch_normalization(x, name='batch_enc_1')
+        x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        x = tf.layers.batch_normalization(x, name='batch_enc_2')
+        print(x.get_shape())
+        x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.batch_normalization(x, name='batch_enc_3')
+        x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        x = tf.layers.batch_normalization(x, name='batch_enc_4')
+        print(x.get_shape())
+
+        x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.batch_normalization(x, name='batch_enc_5')
+        x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.batch_normalization(x, name='batch_enc_6')
+        x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        print(x.get_shape())
+
+        x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.batch_normalization(x, name='batch_enc_7')
+        x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.batch_normalization(x, name='batch_enc_8')
+        x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        x = tf.layers.batch_normalization(x, name='batch_enc_9')
+        print(x.get_shape())
+
+        # x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        # x = tf.layers.batch_normalization(x, name='batch_enc_9')
+        x = tf.layers.conv2d(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        x = tf.layers.batch_normalization(x, name='batch_enc_10')
+        print(x.get_shape())
+
+
+        # x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        # x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        # x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        # x = tf.layers.conv2d(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+        # x = tf.layers.conv2d(x, filters=512, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=1)
 
         # x = tf.layers.flatten(x)
         # z_mu = tf.layers.dense(x, self.latent_vec_size, name='z_mu')
@@ -106,13 +145,45 @@ class Network(object):
         # return z_mu, z_logvar
         return x
 
-    def decoder(self, z, reuse=False):
-        print(z.get_shape())
-        x = tf.layers.conv2d_transpose(z, filters=64, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+    def decoder(self, x, reuse=False):
+        # x = tf.reshape(x, [-1, 2, 1, 512])
+
         print(x.get_shape())
-        x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+        x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
         print(x.get_shape())
-        x = tf.layers.conv2d_transpose(x, filters=16, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+        x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+        x = tf.layers.conv2d_transpose(x, filters=2, kernel_size=(3,5), activation=None, padding='valid', strides=2)
+        # x = tf.layers.conv2d(x, filters=2, kernel_size=3, activation=None, padding='valid', strides=2)
+        print(x.get_shape())
+        # assert(False)
+
+        return x
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+
         print(x.get_shape())
         x = tf.layers.conv2d_transpose(x, filters=2, kernel_size=(3, 5), activation=None, padding='valid', strides=2)
         print(x.get_shape())
