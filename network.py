@@ -39,29 +39,33 @@ class Network(object):
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
         self.waveform = waveform
+        tf.summary.audio("waveform", self.waveform, max_outputs=3, sample_rate=16000)
         # self.waveform = tf.placeholder(dtype=tf.float32, shape=[None, self.audio_length])
-        self.latent_vector = tf.placeholder(tf.float32, [None, self.latent_vec_size])
+        # self.latent_vector = tf.placeholder(tf.float32, [None, self.latent_vec_size])
         # tf.summary.image('{}/Originals'.format(self.logsfolder), self.image, 10)
 
         self.input = self.preprocessing(self.waveform)
+        # self.z_mu, self.z_logvar = self.encoder(self.waveform)
+        # self.z = self.sample_z(self.z_mu, self.z_logvar)
 
-        self.z_mu, self.z_logvar = self.encoder(self.input)
-        self.z = self.sample_z(self.z_mu, self.z_logvar)
+        self.encoding = self.encoder(self.input)
+        self.reconstructed_input = self.decoder(self.encoding)
 
-        self.reconstructed_input = self.decoder(self.z)
         self.reconstructed_waveform = self.postprocessing(self.reconstructed_input)
+
+        tf.summary.audio("rec_waveform", self.reconstructed_waveform, max_outputs=3, sample_rate=16000)
 
         # tf.summary.image('{}/Reconstructions'.format(self.logsfolder), self.reconstructions, 10)
 
         self.loss = self.compute_loss()
-        # tf.summary.scalar('{}/Loss'.format(self.logsfolder), self.loss)
+        tf.summary.scalar('Loss', self.loss)
 
         optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
         gradients = optimizer.compute_gradients(loss=self.loss)
 
-        for gradient, variable in gradients:
-            tf.summary.histogram("gradients/" + variable.name, gradient)
-            tf.summary.histogram("variables/" + variable.name, variable)
+        # for gradient, variable in gradients:
+        #     tf.summary.histogram("gradients/" + variable.name, gradient)
+        #     tf.summary.histogram("variables/" + variable.name, variable)
 
         self.train_op = optimizer.apply_gradients(gradients, global_step=self.global_step)
 
@@ -69,6 +73,7 @@ class Network(object):
 
     def preprocessing(self, waveform):
         stft = tf.contrib.signal.stft(waveform, self.frame_length, self.frame_step, self.fft_length)
+        tf.summary.image("STFT", tf.expand_dims(tf.abs(stft), -1), 3)
         real = tf.real(stft)
         imag = tf.imag(stft)
         return tf.stack([real, imag], axis=-1)
@@ -78,6 +83,8 @@ class Network(object):
         first transform the 2D reconstruction to a complex signal
         """
         stft = tf.complex(reconstruction_2D[:, :, :, 0], reconstruction_2D[:, :, :, 1])
+        tf.summary.image("Rec_STFT", tf.expand_dims(tf.abs(stft), -1), 3)
+
         inverse_stft = tf.contrib.signal.inverse_stft(
             stft, self.frame_length, self.frame_step, self.fft_length,
             window_fn=tf.contrib.signal.inverse_stft_window_fn(self.frame_step))
@@ -88,42 +95,25 @@ class Network(object):
         return mu + tf.exp(logvar / 2) * eps
 
     def encoder(self, x):
-        for _ in range(4):
-            x = residual_conv_block(x, 32, 3, strides=1)
-        x = tf.layers.max_pooling2d(x, pool_size=2, strides=2)
+        x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+        x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+        x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
 
-        for _ in range(4):
-            x = residual_conv_block(x, 64, 3, strides=1)
-        x = tf.layers.max_pooling2d(x, pool_size=2, strides=2)
+        # x = tf.layers.flatten(x)
+        # z_mu = tf.layers.dense(x, self.latent_vec_size, name='z_mu')
+        # z_logvar = tf.layers.dense(x, self.latent_vec_size, name='z_logvar')
+        # return z_mu, z_logvar
+        return x
 
-        for _ in range(4):
-            x = residual_conv_block(x, 128, 3, strides=1)
-        x = tf.layers.max_pooling2d(x, pool_size=2, strides=2)
-
-        x = tf.layers.flatten(x)
-        z_mu = tf.layers.dense(x, units=self.latent_vec_size, name='z_mu')
-        z_logvar = tf.layers.dense(x, units=self.latent_vec_size, name='z_logvar')
-
-        return z_mu, z_logvar
-
-    def decoder(self, z):
-        x = tf.layers.dense(z, 1024, activation=None)
-        x = tf.reshape(x, [-1, 1, 1, 1024])
-
-        for _ in range(3):
-            x = residual_deconv_block(x, 512, 3, strides=(1, 1), padding='same')
-        x = residual_deconv_block(x, 512, (3, 3), strides=(3, 2), padding='valid')
-
-        for _ in range(3):
-            x = residual_deconv_block(x, 256, 3, strides=(1, 1), padding='same')
-        x = residual_deconv_block(x, 256, (3, 3), strides=(2, 2), padding='valid')
-
-        for _ in range(3):
-            x = residual_deconv_block(x, 128, 3, strides=(1, 1), padding='same')
-        x = residual_deconv_block(x, 128, (3, 4), strides=(2, 2), padding='valid')
-
-        x = tf.layers.conv2d(x, filters=2, kernel_size=(1, 2), padding='valid', activation=None)
-
+    def decoder(self, z, reuse=False):
+        print(z.get_shape())
+        x = tf.layers.conv2d_transpose(z, filters=32, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=16, kernel_size=3, activation=tf.nn.relu, padding='valid', strides=2)
+        print(x.get_shape())
+        x = tf.layers.conv2d_transpose(x, filters=2, kernel_size=(3, 5), activation=None, padding='valid', strides=2)
+        print(x.get_shape())
+        # assert(False)
         return x
 
     def compute_loss(self):
@@ -136,6 +126,6 @@ class Network(object):
         w_original = self.waveform[:, 100:self.audio_length-100]
         w_reconstr = self.reconstructed_waveform[:, 100:self.audio_length-100]
         reconstruction_wave_loss = tf.reduce_sum(tf.square(w_original - w_reconstr), axis=1)
-        kl_loss = 0.5 * tf.reduce_sum(tf.exp(self.z_logvar) + self.z_mu**2 - 1. - self.z_logvar, 1)
-        vae_loss = tf.reduce_mean(reconstruction_stft_loss + reconstruction_wave_loss + kl_loss)
+        # kl_loss = 0.5 * tf.reduce_sum(tf.exp(self.z_logvar) + self.z_mu**2 - 1. - self.z_logvar, 1)
+        vae_loss = tf.reduce_mean(reconstruction_stft_loss + reconstruction_wave_loss)# + kl_loss)
         return vae_loss

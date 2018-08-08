@@ -10,11 +10,10 @@ from read_tfrecords import input_fn
 
 from signal_processing import wav_to_floats, floats_to_wav
 
-audio, fs = wav_to_floats('test.wav')
-audio = audio-np.mean(audio)
-audio /= np.max(np.abs(audio))
-audio = np.reshape(audio, (1, -1))
-TOT_STEPS = 5000
+# audio, fs = wav_to_floats('test.wav')
+# audio = audio-np.mean(audio)
+# audio /= np.max(np.abs(audio))
+# audio = np.reshape(audio, (1, -1))
 BATCH_SIZE = 128
 
 def train_vae():
@@ -43,10 +42,8 @@ def train_vae():
 		step = network.global_step.eval()
 
 		try:
-			while(step <= TOT_STEPS):
-				feed_dict = {network.waveform: audio}
-				_, loss_value, summary, rec = sess.run([network.train_op, network.loss, network.merged, network.reconstructed_waveform],
-									feed_dict=feed_dict)
+			while(1):
+				_, loss_value, summary, rec = sess.run([network.train_op, network.loss, network.merged, network.reconstructed_waveform])
 				writer.add_summary(summary, step)
 
 				if np.isnan(loss_value):
@@ -55,6 +52,7 @@ def train_vae():
 				step+=1
 				if step > 0 and step % 100 == 0:
 					print("Step: {:05d} - Loss: {:.3f}".format(step, loss_value))
+					save_path = saver.save(sess, model_name, global_step=step)
 
 		except (KeyboardInterrupt, SystemExit):
 			print("Manual Interrupt")
@@ -63,6 +61,7 @@ def train_vae():
 			print("Exception: {}".format(e))
 		finally:
 			print("Model was saved here: {}".format(model_name))
+			save_path = saver.save(sess, model_name, global_step=step)
 
 if __name__ == '__main__':
 	train_vae()
