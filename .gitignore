@@ -1,0 +1,6 @@
+data/
+train/
+*wav
+test.py
+logdir/
+__pycache__/
