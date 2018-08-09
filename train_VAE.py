@@ -10,10 +10,6 @@ from read_tfrecords import input_fn
 
 from signal_processing import wav_to_floats, floats_to_wav
 
-# audio, fs = wav_to_floats('test.wav')
-# audio = audio-np.mean(audio)
-# audio /= np.max(np.abs(audio))
-# audio = np.reshape(audio, (1, -1))
 BATCH_SIZE = 128
 
 def train_vae():
@@ -63,5 +59,37 @@ def train_vae():
 			print("Model was saved here: {}".format(model_name))
 			save_path = saver.save(sess, model_name, global_step=step)
 
+def load_vae(model_path):
+
+	graph = tf.Graph()
+	with graph.as_default():
+		config = tf.ConfigProto()
+		config.gpu_options.allow_growth = True
+		sess = tf.Session(config=config, graph=graph)
+
+		network = Network()
+		init = tf.global_variables_initializer()
+		sess.run(init)
+
+		saver = tf.train.Saver(max_to_keep=1)
+
+		try:
+			saver.restore(sess, tf.train.latest_checkpoint(model_path))
+		except:
+			raise ImportError("Could not restore saved model")
+
+		return sess, network
+
+
 if __name__ == '__main__':
 	train_vae()
+
+	audio, fs = wav_to_floats('test.wav')
+	audio = audio-np.mean(audio)
+	audio /= np.max(np.abs(audio))
+	audio = np.reshape(audio, (1, -1))
+	model_path = "saved_models/"
+	sess, network = load_vae(model_path)
+
+	reconstructed_test = sess.run(network.reconstructed_waveform, feed_dict={network.waveform: audio})
+	floats_to_wav("test2.wav", np.squeeze(reconstructed_test), 16000)

@@ -1,36 +1,40 @@
 import tensorflow as tf
-
 LEARNING_RATE = 3E-5
 
-def residual_conv_block(x, num_channels, kernel_size, strides=1):
+def residual_conv_block(x, in_channels, resize_channels):
 
-	residual = tf.layers.conv2d(x, filters=num_channels, kernel_size=1, padding='same', activation=tf.nn.leaky_relu)
-	residual = tf.layers.batch_normalization(residual)
+	shortcut = x
+	x = tf.layers.conv2d(x, filters=resize_channels, kernel_size=1, strides=1, padding='same', activation=tf.nn.leaky_relu)
+	x = tf.layers.batch_normalization(x)
 
-	conv1 = tf.layers.conv2d(x, filters=num_channels, kernel_size=kernel_size, strides=strides, padding='same', activation=tf.nn.leaky_relu)
-	batch1 = tf.layers.batch_normalization(conv1)
-	conv2 = tf.layers.conv2d(batch1, filters=num_channels, kernel_size=kernel_size, strides=strides, padding='same', activation=tf.nn.leaky_relu)
-	batch2 = tf.layers.batch_normalization(conv2)
-	block = tf.nn.leaky_relu(batch2 + residual)
-	return tf.layers.batch_normalization(block)
+	x = tf.layers.conv2d(x, filters=resize_channels, kernel_size=3, strides=1, padding='same', activation=tf.nn.leaky_relu)
+	x = tf.layers.batch_normalization(x)
 
-def residual_deconv_block(x, num_channels, kernel_size, strides=1, padding='same', activation=tf.nn.leaky_relu):
+	x = tf.layers.conv2d(x, filters=in_channels, kernel_size=1, strides=1, padding='same', activation=tf.nn.leaky_relu)
+	x = tf.layers.batch_normalization(x)
 
-	# residual = tf.layers.conv2d(x, filters=num_channels, kernel_size=1, strides=strides, padding='same', activation=tf.nn.leaky_relu)
-	# residual = tf.layers.batch_normalization(residual)
+	block = tf.nn.leaky_relu(x + shortcut)
+	return block
 
-	deconv1 = tf.layers.conv2d_transpose(x, filters=num_channels, kernel_size=kernel_size, strides=strides, padding=padding, activation=activation)
-	batch1 = tf.layers.batch_normalization(deconv1)
-	deconv2 = tf.layers.conv2d_transpose(batch1, filters=num_channels, kernel_size=kernel_size, strides=strides, padding=padding, activation=activation)
-	batch2 = tf.layers.batch_normalization(deconv2)
-	return batch2
-	# block = tf.nn.leaky_relu(batch2 + residual)
-	# return tf.layers.batch_normalization(block)
+def residual_deconv_block(x, in_channels, resize_channels):
+
+	shortcut = x
+	x = tf.layers.conv2d_transpose(x, filters=resize_channels, kernel_size=1, strides=1, padding='same', activation=tf.nn.leaky_relu)
+	x = tf.layers.batch_normalization(x)
+
+	x = tf.layers.conv2d_transpose(x, filters=resize_channels, kernel_size=3, strides=1, padding='same', activation=tf.nn.leaky_relu)
+	x = tf.layers.batch_normalization(x)
+
+	x = tf.layers.conv2d_transpose(x, filters=in_channels, kernel_size=1, strides=1, padding='same', activation=tf.nn.leaky_relu)
+	x = tf.layers.batch_normalization(x)
+
+	block = tf.nn.leaky_relu(x + shortcut)
+	return block
 
 
 class Network(object):
 	# Create model
-	def __init__(self, waveform):
+	def __init__(self, waveform=None, generate=False):
 		self.latent_vec_size = 64
 		self.frame_length = 160
 		self.frame_step = 100
@@ -38,21 +42,29 @@ class Network(object):
 		self.audio_length = 16000
 		self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
-		self.waveform = waveform
+		if type(waveform) == type(None):
+			self.waveform = tf.placeholder(dtype=tf.float32, shape=[None, self.audio_length])
+		else:
+			self.waveform = waveform
 		tf.summary.audio("waveform", self.waveform, max_outputs=3, sample_rate=16000)
-		# self.waveform = tf.placeholder(dtype=tf.float32, shape=[None, self.audio_length])
-		# self.latent_vector = tf.placeholder(tf.float32, [None, self.latent_vec_size])
-		# tf.summary.image('{}/Originals'.format(self.logsfolder), self.image, 10)
 
+
+		# From Time to Frequency Domain
 		self.input = self.preprocessing(self.waveform)
+
+		# Compute encoding
 		self.z_mu, self.z_logvar = self.encoder(self.input)
 		self.z = self.sample_z(self.z_mu, self.z_logvar)
+
+		# Reconstruct Frequency and Time domain
 		self.reconstructed_input = self.decoder(self.z)
 		self.reconstructed_waveform = self.postprocessing(self.reconstructed_input)
-
 		tf.summary.audio("rec_waveform", self.reconstructed_waveform, max_outputs=3, sample_rate=16000)
 
-		# tf.summary.image('{}/Reconstructions'.format(self.logsfolder), self.reconstructions, 10)
+		if generate:
+			self.latent_vector = tf.placeholder(tf.float32, [None, self.latent_vec_size])
+			self.generated_input = self.decoder(self.latent_vector, True)
+			self.generated_waveform = self.postprocessing(self.generated_input)
 
 		self.loss = self.compute_loss()
 		tf.summary.scalar('Loss', self.loss)
@@ -153,32 +165,32 @@ class Network(object):
 		return z_mu, z_logvar
 
 	def decoder(self, x, reuse=False):
-		x = tf.layers.dense(x, 512, activation=None)
+		x = tf.layers.dense(x, 512, activation=None, reuse=reuse, name='decoder_dense1')
 		x = tf.reshape(x, [-1, 1, 1, 512])
 
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=(4, 3), activation=tf.nn.leaky_relu, padding='valid', strides=2)
+		x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=(4, 3), activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv1')
 
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+		x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv2')
 
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+		x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv3')
 
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+		x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv4')
 
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
+		x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv5')
 
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		x = tf.layers.conv2d_transpose(x, filters=2, kernel_size=(3,5), activation=None, padding='valid', strides=2)
+		x = tf.layers.conv2d_transpose(x, filters=2, kernel_size=(3,5), activation=None, padding='valid', strides=2, reuse=reuse, name='deconv6')
 		# x = tf.layers.conv2d(x, filters=2, kernel_size=3, activation=None, padding='valid', strides=2)
 		print(x.get_shape())
 		# assert(False)
