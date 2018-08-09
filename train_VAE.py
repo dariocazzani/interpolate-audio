@@ -59,7 +59,7 @@ def train_vae():
 			print("Model was saved here: {}".format(model_name))
 			save_path = saver.save(sess, model_name, global_step=step)
 
-def load_vae(model_path):
+def load_vae(model_path, generate=False):
 
 	graph = tf.Graph()
 	with graph.as_default():
@@ -67,7 +67,7 @@ def load_vae(model_path):
 		config.gpu_options.allow_growth = True
 		sess = tf.Session(config=config, graph=graph)
 
-		network = Network()
+		network = Network(generate=generate)
 		init = tf.global_variables_initializer()
 		sess.run(init)
 
@@ -79,7 +79,6 @@ def load_vae(model_path):
 			raise ImportError("Could not restore saved model")
 
 		return sess, network
-
 
 if __name__ == '__main__':
 	train_vae()
@@ -93,3 +92,11 @@ if __name__ == '__main__':
 
 	reconstructed_test = sess.run(network.reconstructed_waveform, feed_dict={network.waveform: audio})
 	floats_to_wav("test2.wav", np.squeeze(reconstructed_test), 16000)
+
+	z = np.random.randn(1, 64)
+	del(sess)
+	del(network)
+
+	sess, network = load_vae(model_path, generate=True)
+	generated = sess.run(network.generated_waveform, feed_dict={network.latent_vector: z})
+	floats_to_wav("test3.wav", np.squeeze(generated), 16000)
