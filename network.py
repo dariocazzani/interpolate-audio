@@ -109,36 +109,21 @@ class Network(object):
 
 	def encoder(self, x):
 
-		# x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_1')
 		x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
 		x = tf.layers.batch_normalization(x, name='batch_enc_2')
 		print(x.get_shape())
-		# x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_3')
+
 		x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
 		x = tf.layers.batch_normalization(x, name='batch_enc_4')
 		print(x.get_shape())
 
-		# x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_5')
-		# x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_6')
 		x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
 		print(x.get_shape())
 
-		# x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_7')
-		# x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_8')
 		x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
 		x = tf.layers.batch_normalization(x, name='batch_enc_9')
 		print(x.get_shape())
 
-		# x = tf.layers.conv2d(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_10')
-		# x = tf.layers.conv2d(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
-		# x = tf.layers.batch_normalization(x, name='batch_enc_11')
 		x = tf.layers.conv2d(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
 		x = tf.layers.batch_normalization(x, name='batch_enc_12')
 		print(x.get_shape())
@@ -147,19 +132,9 @@ class Network(object):
 		x = tf.layers.batch_normalization(x, name='batch_enc_13')
 		print(x.get_shape())
 
-
-		# x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
-		# x = tf.layers.conv2d(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
-		# x = tf.layers.conv2d(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
-		# x = tf.layers.conv2d(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
-		# x = tf.layers.conv2d(x, filters=512, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=1)
-
-		# x = tf.layers.flatten(x)
-		# z_mu = tf.layers.dense(x, self.latent_vec_size, name='z_mu')
-		# z_logvar = tf.layers.dense(x, self.latent_vec_size, name='z_logvar')
-		# return z_mu, z_logvar
-
 		x = tf.layers.flatten(x)
+		x = tf.layers.dense(x, units=1024, activation=tf.nn.leaky_relu, name='enc_dense1')
+		x = tf.layers.batch_normalization(x, name='batch_enc_14')
 		z_mu = tf.layers.dense(x, units=self.latent_vec_size, name='z_mu')
 		z_logvar = tf.layers.dense(x, units=self.latent_vec_size, name='z_logvar')
 		return z_mu, z_logvar
