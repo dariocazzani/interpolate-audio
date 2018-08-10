@@ -140,7 +140,10 @@ class Network(object):
 		return z_mu, z_logvar
 
 	def decoder(self, x, reuse=False):
-		x = tf.layers.dense(x, 512, activation=None, reuse=reuse, name='decoder_dense1')
+		x = tf.layers.dense(x, 1024, activation=tf.nn.leaky_relu, reuse=reuse, name='decoder_dense1')
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_1')
+		x = tf.layers.dense(x, 512, activation=tf.nn.leaky_relu, reuse=reuse, name='decoder_dense2')
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_2')
 		x = tf.reshape(x, [-1, 1, 1, 512])
 
 		print(x.get_shape())
