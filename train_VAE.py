@@ -10,7 +10,7 @@ from read_tfrecords import input_fn
 
 from signal_processing import wav_to_floats, floats_to_wav
 
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 
 def train_vae():
 	with tf.Session() as sess:

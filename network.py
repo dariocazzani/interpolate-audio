@@ -1,5 +1,5 @@
 import tensorflow as tf
-LEARNING_RATE = 3E-5
+LEARNING_RATE = 3E-4
 
 def residual_conv_block(x, in_channels, resize_channels):
 
@@ -207,6 +207,6 @@ class Network(object):
 		w_original = self.waveform[:, 100:self.audio_length-100]
 		w_reconstr = self.reconstructed_waveform[:, 100:self.audio_length-100]
 		reconstruction_wave_loss = tf.reduce_sum(tf.square(w_original - w_reconstr), axis=1)
-		# kl_loss = 0.5 * tf.reduce_sum(tf.exp(self.z_logvar) + self.z_mu**2 - 1. - self.z_logvar, 1)
-		vae_loss = tf.reduce_mean(reconstruction_stft_loss + reconstruction_wave_loss)# + kl_loss)
+		kl_loss = 0.5 * tf.reduce_sum(tf.exp(self.z_logvar) + self.z_mu**2 - 1. - self.z_logvar, 1)
+		vae_loss = tf.reduce_mean(reconstruction_stft_loss + reconstruction_wave_loss + kl_loss)
 		return vae_loss
