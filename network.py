@@ -109,8 +109,14 @@ class Network(object):
 
 	def encoder(self, x):
 
+		x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
+		print(x.get_shape())
+		x = tf.layers.batch_normalization(x, name='batch_enc_1')
+		x = residual_conv_block(x, in_channels=16, resize_channels=4)
+		print(x.get_shape())
 		x = tf.layers.conv2d(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
-		x = tf.layers.batch_normalization(x, name='batch_enc_2')
+		x = residual_conv_block(x, in_channels=16, resize_channels=4)
+		# x = tf.layers.batch_normalization(x, name='batch_enc_2')
 		print(x.get_shape())
 
 		x = tf.layers.conv2d(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2)
