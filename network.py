@@ -149,26 +149,28 @@ class Network(object):
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
 		x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=(4, 3), activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv1')
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_3')
 
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
 		x = tf.layers.conv2d_transpose(x, filters=256, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv2')
-
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_4')
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
 		x = tf.layers.conv2d_transpose(x, filters=128, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv3')
-
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_5')
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
 		x = tf.layers.conv2d_transpose(x, filters=64, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv4')
-
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_6')
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
 		x = tf.layers.conv2d_transpose(x, filters=32, kernel_size=3, activation=tf.nn.leaky_relu, padding='valid', strides=2, reuse=reuse, name='deconv5')
-
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_7')
 		print(x.get_shape())
 		# x = tf.layers.conv2d_transpose(x, filters=16, kernel_size=3, activation=tf.nn.leaky_relu, padding='same', strides=1)
 		x = tf.layers.conv2d_transpose(x, filters=2, kernel_size=(3,5), activation=None, padding='valid', strides=2, reuse=reuse, name='deconv6')
+		x = tf.layers.batch_normalization(x, name='decoder_batch_norm_8')
 		# x = tf.layers.conv2d(x, filters=2, kernel_size=3, activation=None, padding='valid', strides=2)
 		print(x.get_shape())
 		# assert(False)
